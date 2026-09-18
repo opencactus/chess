@@ -32,6 +32,7 @@ uint8_t (*argv_proccessing(int32_t argc, char *argv[]))(struct chess *) {
 enum color_t *user_side;
 int32_t
 main (int32_t argc, char *argv[]) {
+
     new_debug_record("New main start");
 	
 	uint8_t (*game_mode)(struct chess *);

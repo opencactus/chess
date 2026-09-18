@@ -20,10 +20,39 @@
 #include "../include/logging.h"
 
 
-static SDL_bool is_under_mcursor(int32_t x_cursor, int32_t y_cursor,
-			int32_t x_obj, int32_t y_obj, int32_t w_obj, int32_t h_obj) {
-	return (x_cursor >= x_obj && x_cursor <= (x_obj + w_obj))
-			&& (y_cursor >= y_obj && y_cursor <= (y_obj + h_obj));
+int32_t window_size[2];
+int32_t board_size[2];
+
+
+static inline void update_window_size(SDL_Window *window) {
+	SDL_GetWindowSize(window, &window_size[0], &window_size[1]);
+}
+
+
+static inline void update_board_size() {
+	board_size[0] = window_size[0] * 0.8;
+	board_size[1] = window_size[1];
+}
+
+
+static SDL_bool get_square_pos(int32_t *x_cursor, int32_t *y_cursor,
+								uint8_t *pos_x, uint8_t *pos_y)
+{
+	if (*x_cursor < 0 || *x_cursor >= board_size[0]) return SDL_FALSE;
+	if (*y_cursor < 0 || *y_cursor >= board_size[1]) return SDL_FALSE;
+
+	*pos_y = *x_cursor / (board_size[0] / 8);
+	*pos_x = *y_cursor / (board_size[1] / 8);
+	printf("%d %d\n", *pos_x, *pos_y);
+	return SDL_TRUE;
+}
+
+
+static inline
+SDL_bool rect_under_mcursor(int32_t x_cursor, int32_t y_cursor, SDL_Rect *rect)
+{
+	return (x_cursor >= rect->x && x_cursor <= (rect->x + rect->w))
+			&& (y_cursor >= rect->y && y_cursor <= (rect->y + rect->h));
 }
 
 
@@ -35,15 +64,16 @@ static char *get_path_to_texture(char *file_name) {
 	return texturePath;
 }
 
-
-void draw_board(SDL_Renderer *renderer, struct guiChess *global) {
+// sq_size - square size
+void draw_board(SDL_Renderer *renderer, struct guiChess *global)
+{	
 	SDL_Rect square;
-	square.w = 125;
-	square.h = 125;
+	square.w = board_size[0]/8;
+	square.h = board_size[1]/8;
 	for (uint8_t i = 0; i < 8; ++i) { // only if I make move or holding piece?
-		square.y = 125 * i;
+		square.y = board_size[1]/8 * i;
 		for (uint8_t j = 0; j < 8; ++j) {
-			square.x = 125 * j;
+			square.x = board_size[0]/8 * j;
 			if (global->engine->board[i][j].side == white) {
 				if (global->guiBoard[i][j].is_highlighted == SDL_TRUE)
 					SDL_SetRenderDrawColor(renderer, 160, 216, 183, 255);
@@ -107,6 +137,9 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 	// TODO: switch-case of chess mode (local/one_device/vs_bot)
 	/* SDL_RenderClear(renderer); */
 	uint8_t is_running = 1;
+	update_window_size(window);
+	board_size[0] = 1000;
+	board_size[1] = 1000;	
 	struct guiChess global;
 	global.engine = engine;
 	for (uint8_t i = 0; i < 8; ++i) {
@@ -114,10 +147,11 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 			global.guiBoard[i][j].is_highlighted = SDL_FALSE;
 			global.guiBoard[i][j].texture = get_figure_texture(renderer,
 												&engine->board[i][j].obj);
-			global.guiBoard[i][j].pos.w = 125;
-			global.guiBoard[i][j].pos.h = 125;
-			global.guiBoard[i][j].pos.x = j * 125; // BUG: If I change window resolution I get glitches 
-			global.guiBoard[i][j].pos.y = i * 125;
+			global.guiBoard[i][j].pos.w = board_size[0]/8;
+			global.guiBoard[i][j].pos.h = board_size[1]/8;
+			global.guiBoard[i][j].pos.x = j * board_size[0]/8;
+			// BUG: If I change window resolution I get glitches
+			global.guiBoard[i][j].pos.y = i * board_size[1]/8;
 		}
 	}
 
@@ -130,16 +164,21 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 	struct active_figure active;
 	active.gui = NULL;
 	active.obj = NULL;
-	
+
+	oldPos.gui = NULL;
+	oldPos.obj = NULL;	
+
 	while (is_running) {
 		SDL_Event event;
+		
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_KEYDOWN:
 					switch (event.key.keysym.sym) {
 						case SDLK_q:
 						case SDLK_ESCAPE:
-							if (oldPos.gui != NULL) {
+
+							if (oldPos.obj != NULL && oldPos.gui != NULL) {
 								free(oldPos.gui);
 								free(oldPos.obj);
 							}
@@ -152,12 +191,28 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 							return 2;
 					}
 					break;
+				case SDL_WINDOWEVENT:
+					update_window_size(window);
+					update_board_size();
+					
+					for (uint8_t i = 0; i < 8; ++i)
+						for (uint8_t j = 0; j < 8; ++j) {
+						global.guiBoard[i][j].pos.x = board_size[0]/8 * j;
+						global.guiBoard[i][j].pos.y = board_size[1]/8 * i;
+						
+						global.guiBoard[i][j].pos.w = board_size[0]/8;
+						global.guiBoard[i][j].pos.h = board_size[1]/8;
+					}
+					SDL_RenderClear(renderer);
+					draw_board(renderer, &global);
+					SDL_RenderPresent(renderer);
+					break;
 				case SDL_MOUSEMOTION:
 					switch (event.button.button) {
 						case 1: {// Left button
 							if (!is_mouse_holding || active.gui == NULL) break;
-							active.gui->pos.x = event.motion.x - 62;
-							active.gui->pos.y = event.motion.y - 62;
+							active.gui->pos.x = event.motion.x - window_size[0] / 8 / 2;
+							active.gui->pos.y = event.motion.y - window_size[1] / 8 / 2;
 							
 							SDL_RenderClear(renderer);
 							draw_board(renderer, &global);
@@ -167,86 +222,80 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 						default: break;
 					}
 					break;
-				case SDL_MOUSEBUTTONDOWN:
+				case SDL_MOUSEBUTTONDOWN: {
+					uint8_t i = 0;
+					uint8_t j = 0;
+					if (get_square_pos(&event.button.x, &event.button.y, &i, &j)
+						 == SDL_FALSE ) break;
 					is_mouse_holding = SDL_TRUE;
-					for (uint8_t i = 0; i < 8; ++i)
-						for (uint8_t j = 0; j < 8; ++j) {
-#define ELEMENT_BELOW global.guiBoard[i][j].pos
-							if (global.engine->board[i][j].obj.type != empty && is_under_mcursor(event.button.x, event.button.y,
-								ELEMENT_BELOW.x, ELEMENT_BELOW.y,
-								ELEMENT_BELOW.w, ELEMENT_BELOW.h)) {
-							oldPos.gui = (struct guiPiece *)(malloc(sizeof(struct guiPiece)));
-							oldPos.obj = (struct piece *)(malloc(sizeof(struct piece)));	
+					if (global.engine->board[i][j].obj.type != empty &&
+							rect_under_mcursor(event.button.x, event.button.y,
+							&global.guiBoard[i][j].pos)) {
+						oldPos.gui = (struct guiPiece *)(malloc(sizeof(struct guiPiece)));
+						oldPos.obj = (struct piece *)(malloc(sizeof(struct piece)));
+						
+						oldPos.gui->is_highlighted = global.guiBoard[i][j].is_highlighted;
+						oldPos.gui->pos = global.guiBoard[i][j].pos;
+						oldPos.gui->texture = global.guiBoard[i][j].texture;
 
+						oldPos.obj->side = global.engine->board[i][j].obj.side;
+						oldPos.obj->type = global.engine->board[i][j].obj.type;
 
-							// TODO: REWRITE THIS SHIT CODE!!
-							oldPos.gui->is_highlighted = global.guiBoard[i][j].is_highlighted;
-							oldPos.gui->pos = global.guiBoard[i][j].pos;
-							oldPos.gui->texture = global.guiBoard[i][j].texture;
+						active.gui = &global.guiBoard[i][j];
+						active.obj = &global.engine->board[i][j].obj;
 
-							oldPos.obj->side = global.engine->board[i][j].obj.side;
-							oldPos.obj->type = global.engine->board[i][j].obj.type;
-
-							active.gui = &global.guiBoard[i][j];
-							active.obj = &global.engine->board[i][j].obj;
-
-							global.guiBoard[i][j].is_highlighted = SDL_TRUE;
-							goto found;
-							}
-						}
-found:
+						global.guiBoard[i][j].is_highlighted = SDL_TRUE;
+					}
 					/* struct piece *obj = find_obj( */
 					break;
+				}
 				case SDL_MOUSEBUTTONUP: // BUG: If I move figure on friend figure piece doesn't return back to start position
 					printf("SDL_MOUSEBUTTONUP\n");
+					uint8_t i = 0;
+					uint8_t j = 0;
+					if (get_square_pos(&event.button.x, &event.button.y, &i, &j)
+						 == SDL_FALSE ) break;
 					switch (event.button.button) {
 						case 1: {// Left button
-						for (uint8_t i = 0; i < 8; ++i) // If I move active figure below cursor I get literally it
-							for (uint8_t j = 0; j < 8; ++j) {							
-								if (global.engine->board[i][j].obj.type != empty && is_under_mcursor(event.button.x, event.button.y,
-									ELEMENT_BELOW.x, ELEMENT_BELOW.y,
-									ELEMENT_BELOW.w, ELEMENT_BELOW.h) &&
-									&global.engine->board[i][j].obj != active.obj
-									|| event.button.x < 0 || event.button.x > 1000 ||
-									event.button.y < 0 || event.button.y > 1000) {
+							/* || event.button.x < 0 || event.button.x > 1000 || */
+							/* event.button.y < 0 || event.button.y > 1000) { */
+							if (&global.engine->board[i][j].obj == active.obj) {
+								// back to old pos just dragging or smth like this
+							}
+								
+							/* printf("%d %d\n", event.button.x, event.button.y); */
+							/* print_square_info(&global.engine->board[i][j]); */
+								
+							printf("ELEMENT_BELOW\n");
+							if (
+						 event.button.x < 0 || event.button.x > board_size[0]
+						|| event.button.y < 0 || event.button.y > board_size[1]
+						|| engine->board[i][j].obj.side == oldPos.obj->side) {
 
-									
-									/* printf("%d %d\n", event.button.x, event.button.y); */
-									/* print_square_info(&global.engine->board[i][j]); */
-									
-									printf("ELEMENT_BELOW\n");
-									if (event.button.x < 0 || event.button.x > 1000 ||
-									event.button.y < 0 || event.button.y > 1000
-									|| engine->board[i][j].obj.side == oldPos.obj->side) {
-
-									active.gui->is_highlighted = oldPos.gui->is_highlighted;
-									active.gui->pos = oldPos.gui->pos;
-									active.gui->texture = oldPos.gui->texture;
+							active.gui->is_highlighted = oldPos.gui->is_highlighted;
+							active.gui->pos = oldPos.gui->pos;
+							active.gui->texture = oldPos.gui->texture;
 	
-									active.obj->side = oldPos.obj->side;
-									active.obj->type = oldPos.obj->type;
+							active.obj->side = oldPos.obj->side;
+							active.obj->type = oldPos.obj->type;
 
-									active.gui->is_highlighted = SDL_FALSE;
-									active.gui = NULL;
-									active.obj = NULL;
-									printf("=========================\n");									
-									printf("End section\n");
+							active.gui->is_highlighted = SDL_FALSE;
+							active.gui = NULL;
+							active.obj = NULL;
+							printf("=========================\n");
+							printf("End section\n");
 									
-									free(oldPos.gui);
-									free(oldPos.obj);
-									oldPos.gui = NULL;
-									oldPos.obj = NULL;
-									
-									SDL_RenderClear(renderer);
-									draw_board(renderer, &global);
-									SDL_RenderPresent(renderer);
-									goto mbutton_up_quit; // I wrote really shit code. But it'll for a while
-									}
-								}
+							free(oldPos.gui);
+							free(oldPos.obj);
+							oldPos.gui = NULL;
+							oldPos.obj = NULL;
+							
+							SDL_RenderClear(renderer);
+							draw_board(renderer, &global);
+							SDL_RenderPresent(renderer);
 							}
 						}
 					}
-mbutton_up_quit:
 					printf("end case\n");
 					is_mouse_holding = SDL_FALSE;
 					break;
@@ -304,8 +353,8 @@ uint8_t gui_start_menu(struct chess *global) {
     	"bvchess",
 	    SDL_WINDOWPOS_CENTERED,
     	SDL_WINDOWPOS_CENTERED,
-	    WINDOW_WIDTH,
-    	WINDOW_HEIGHT,
+	    INITIAL_WINDOW_WIDTH,
+    	INITIAL_WINDOW_HEIGHT,
 	    SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_HIDDEN | SDL_WINDOW_BORDERLESS
 	);
 
@@ -324,45 +373,54 @@ uint8_t gui_start_menu(struct chess *global) {
 	    SDL_Quit();
 		return ERROR_GUI_RENDERER_CREATION;
 	}
-	/* SDL_Surface *surface = SDL_CreateRGBSurface(0, 200, 150, 8, 0, 0, 0, 0); */
-	/* SDL_Surface *surface = SDL_GetWindowSurface(window); */
+
 	SDL_ShowWindow(window);
-	/* if (!surface) { */
-	/* 	printf("SDL_Surface error: %s\n", SDL_GetError()); */
-	/* 	SDL_DestroyWindow(window); */
 
-	/* 	return ERROR_GUI_SURFACE_CREATION; */
-	/* } */
+	SDL_SetWindowMinimumSize(window, 400, 400);
+	
 	struct button pvp_one_device_button = create_button(
-			WINDOW_WIDTH / 2 - 100, 500, renderer, "pvp_1d.png");
-	struct button pvp_local_button = create_button(WINDOW_WIDTH / 2 - 100, 600,
-			renderer, "pvp_2p.png");
-	struct button pvp_bot_button = create_button(WINDOW_WIDTH /  2 - 100, 700,
-			renderer, "pvp_ai.png");
-	/* struct button exit_button = create_button(WINDOW_WIDTH / 2 - 50, 500); */
-	struct button exit_button = create_button(WINDOW_WIDTH / 2 - 100, 800,
-			renderer, "exit.png");
-	/* struct button exit_button = create_button(WINDOW_WIDTH / 2 - BUTTON_MENU_WIDTH / 2, 300); mehh*/
+			INITIAL_WINDOW_WIDTH / 2 - 100,
+			INITIAL_WINDOW_HEIGHT / 2 - DISTANCE_BETWEEN_MENU_BUTTONS,
+			renderer,
+			"pvp_1d.png");
+	struct button pvp_local_button = create_button(
+			INITIAL_WINDOW_WIDTH / 2 - 100,
+			INITIAL_WINDOW_HEIGHT / 2,
+			renderer,
+			"pvp_2p.png");
+	struct button pvp_bot_button = create_button(
+			INITIAL_WINDOW_WIDTH /  2 - 100,
+			INITIAL_WINDOW_HEIGHT / 2 + DISTANCE_BETWEEN_MENU_BUTTONS,
+			renderer,
+			"pvp_ai.png");
+	struct button exit_button = create_button(
+			INITIAL_WINDOW_WIDTH / 2 - 100,
+			INITIAL_WINDOW_HEIGHT / 2 + DISTANCE_BETWEEN_MENU_BUTTONS * 2,
+			renderer,
+			"exit.png");
 
-	SDL_RenderSetLogicalSize(renderer, WINDOW_WIDTH, WINDOW_HEIGHT);
+	SDL_RenderSetLogicalSize(renderer, INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
 	
 	uint8_t is_running = 1;
 	while (is_running) {
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_WINDOWEVENT) {
+				update_window_size(window);
+				update_board_size();
+				printf("Window size is %d %d\n", window_size[0], window_size[1]);
+				printf("Board size is %d %d\n", board_size[0], board_size[1]);			
+			}
 			switch (event.type){
 				case SDL_MOUSEBUTTONUP:
 			// When I press at a piece when it just moved under cursor 
-					if (is_under_mcursor(event.button.x, event.button.y,
-						exit_button.rect.x, exit_button.rect.y,
-						exit_button.rect.w, exit_button.rect.h)) {
+					if (rect_under_mcursor(event.button.x, event.button.y,
+										&exit_button.rect)) {
 						printf("Exit button. Session will be ended soon\n");
 						is_running = 0;
 					}
-					else if (is_under_mcursor(event.button.x, event.button.y,
-				pvp_one_device_button.rect.x, pvp_one_device_button.rect.y,
-				pvp_one_device_button.rect.w, pvp_one_device_button.rect.h))
-					{
+					else if (rect_under_mcursor(event.button.x, event.button.y,
+										&pvp_one_device_button.rect)) {
 						/* SDL_DestroyTexture(pvp_bot_button.idleButton); */
 						/* SDL_DestroyTexture(exit_button.idleButton); */
 						/* SDL_DestroyTexture(pvp_local_button.idleButton); */
