@@ -1,4 +1,12 @@
 * TODO
+** IN-PROGRESS GUI
+*** DONE Castle bug
+If I try castle when my king just stuck in new pos
+*** IN-PROGRESS Checkmate realization
+Return win code and write smth like "you won or black won. Do u wanna play again? Yes or no button
+**** TODO I get strange stalemate when I should get checkmate (gui and cli)
+
+
 ** DONE Attack
 *** DONE Piece attack the new squares
 **** DONE Pawn

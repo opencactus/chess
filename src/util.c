@@ -24,6 +24,20 @@
 /*     PRINT_DASH */
 /* }; */
 
+void
+init_engine(struct chess *engine) {
+	engine->player_side = white;
+    engine->pawn_transformation = empty;
+    engine->last_move[0] = 0;
+    engine->last_move[1] = 0;
+	engine->status = session_active;
+	engine->castling_flags = 0b1111;
+	create_board(engine->board);
+
+	engine->kpos_b = find_figure(engine->board, black, king);
+	engine->kpos_w = find_figure(engine->board, white, king);
+}
+
 
 void
 print_square_info(struct square *sq) {

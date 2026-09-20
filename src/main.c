@@ -58,30 +58,18 @@ main (int32_t argc, char *argv[]) {
         if (global)
         {
 			// Board init
-			global->player_side = white;
-            global->pawn_transformation = empty;
-            global->last_move[0] = 0;
-            global->last_move[1] = 0;
-			global->status = session_active;
-			global->castling_flags = 0b1111;
-			
+			init_engine(global);
             user_side = &global->player_side;
-            create_board(global->board);
 			
-            /* set_training_board(global->board, */
-            /*         "DEEEKEEE" */
-            /*         "EEEEEEEE" */
-            /*         "EEEEnEEE" */
-            /*         "EbEEdEEE" */
-            /*         "EEEEEEEE" */
-            /*         "EEEEEEEE" */
-            /*         "EEEEEEEE" */
-            /*         "EEEEkEEE"); */
-
-			// It makes because if I change board to specific
-			// always kpos will be correct
-			global->kpos_b = find_figure(global->board, black, king);
-			global->kpos_w = find_figure(global->board, white, king);
+            set_training_board(global->board,
+						                    "EEEEEEKE"
+						                    "EEEEEEEE"
+						                    "EEddEEEE"
+						                    "EEEEEEEE"
+						                    "EEEEEEEE"
+						                    "EEEEEkEE"
+						                    "EEEEEEEE"
+						                    "EEEEEEEE");
 			
 			if (global->kpos_b == 255 || global->kpos_w == 255) {
 				printf("Missing King white or black side\n");

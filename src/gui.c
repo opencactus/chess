@@ -4,6 +4,7 @@
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL_types.h>
@@ -30,7 +31,7 @@ static inline void update_window_size(SDL_Window *window) {
 
 
 static inline void update_board_size() {
-	board_size[0] = window_size[0] * 0.8;
+	board_size[0] = window_size[0];
 	board_size[1] = window_size[1];
 }
 
@@ -93,6 +94,21 @@ void draw_board(SDL_Renderer *renderer, struct guiChess *global)
 }
 
 
+static void draw_menu (SDL_Renderer *renderer,
+						struct button *pvp_one_device_button,
+						struct button *pvp_local_button,
+						struct button *pvp_bot_button,
+						struct button *exit_button) {
+	SDL_SetRenderDrawColor(renderer, 213, 189, 175, 255);
+	SDL_RenderClear(renderer);
+		
+	SDL_RenderCopy(renderer, exit_button->idleButton, NULL, &exit_button->rect);
+	SDL_RenderCopy(renderer, pvp_bot_button->idleButton, NULL, &pvp_bot_button->rect);
+	SDL_RenderCopy(renderer, pvp_local_button->idleButton, NULL, &pvp_local_button->rect);
+	SDL_RenderCopy(renderer, pvp_one_device_button->idleButton, NULL, &pvp_one_device_button->rect);
+}
+
+
 static SDL_Texture *
 get_figure_texture(SDL_Renderer *renderer, struct piece *fig)
 {
@@ -130,6 +146,38 @@ get_figure_texture(SDL_Renderer *renderer, struct piece *fig)
 }
 
 
+void
+return_piece_back ( SDL_Renderer *renderer,
+					struct guiChess *global,
+					struct active_figure *active,
+					struct active_figure *oldPos)
+{
+	active->gui->is_highlighted = oldPos->gui->is_highlighted;
+	active->gui->pos = oldPos->gui->pos;
+	active->gui->texture = oldPos->gui->texture;
+	
+	active->obj->side = oldPos->obj->side;
+	active->obj->type = oldPos->obj->type;
+
+	active->gui->is_highlighted = SDL_FALSE;
+	active->gui = NULL;
+	active->obj = NULL;
+	printf("=========================\n");
+	printf("End section\n");
+									
+	/* free(oldPos->gui); */
+	/* free(oldPos->obj); */
+	/* oldPos->gui = NULL; */
+	// Idk it's too much each iter but maybe I'll get glitches without it. Testing
+	/* oldPos->obj = NULL; */
+							
+	SDL_RenderClear(renderer);
+	draw_board(renderer, global);
+	SDL_RenderPresent(renderer);
+}
+
+
+
 static uint8_t
 gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 						SDL_Renderer *renderer)
@@ -142,6 +190,7 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 	board_size[1] = 1000;	
 	struct guiChess global;
 	global.engine = engine;
+	
 	for (uint8_t i = 0; i < 8; ++i) {
 		for (uint8_t j = 0; j < 8; ++j) {
 			global.guiBoard[i][j].is_highlighted = SDL_FALSE;
@@ -167,8 +216,9 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 
 	oldPos.gui = NULL;
 	oldPos.obj = NULL;	
-
-	while (is_running) {
+	oldPos.gui = (struct guiPiece *)(malloc(sizeof(struct guiPiece)));
+	oldPos.obj = (struct piece *)(malloc(sizeof(struct piece)));
+	while (global.engine->status == session_active) {
 		SDL_Event event;
 		
 		while (SDL_PollEvent(&event)) {
@@ -189,6 +239,9 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 								free(oldPos.obj);
 							}
 							return 2;
+						case SDLK_k:
+							printf("%d status \n", global.engine->status);
+							break;
 					}
 					break;
 				case SDL_WINDOWEVENT:
@@ -223,16 +276,16 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 					}
 					break;
 				case SDL_MOUSEBUTTONDOWN: {
+					printf("SDL_MOUSEBUTTONDOWN\n");
 					uint8_t i = 0;
 					uint8_t j = 0;
 					if (get_square_pos(&event.button.x, &event.button.y, &i, &j)
 						 == SDL_FALSE ) break;
 					is_mouse_holding = SDL_TRUE;
 					if (global.engine->board[i][j].obj.type != empty &&
+						global.engine->board[i][j].obj.side == global.engine->player_side &&
 							rect_under_mcursor(event.button.x, event.button.y,
 							&global.guiBoard[i][j].pos)) {
-						oldPos.gui = (struct guiPiece *)(malloc(sizeof(struct guiPiece)));
-						oldPos.obj = (struct piece *)(malloc(sizeof(struct piece)));
 						
 						oldPos.gui->is_highlighted = global.guiBoard[i][j].is_highlighted;
 						oldPos.gui->pos = global.guiBoard[i][j].pos;
@@ -240,6 +293,7 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 
 						oldPos.obj->side = global.engine->board[i][j].obj.side;
 						oldPos.obj->type = global.engine->board[i][j].obj.type;
+						oldPos.pos = i * 8 + j + 1;
 
 						active.gui = &global.guiBoard[i][j];
 						active.obj = &global.engine->board[i][j].obj;
@@ -249,59 +303,145 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 					/* struct piece *obj = find_obj( */
 					break;
 				}
-				case SDL_MOUSEBUTTONUP: // BUG: If I move figure on friend figure piece doesn't return back to start position
+				case SDL_MOUSEBUTTONUP: {
 					printf("SDL_MOUSEBUTTONUP\n");
 					uint8_t i = 0;
 					uint8_t j = 0;
+					if (active.obj == NULL)
+						break;
 					if (get_square_pos(&event.button.x, &event.button.y, &i, &j)
 						 == SDL_FALSE ) break;
+					active.pos = i * 8 + j + 1;
 					switch (event.button.button) {
-						case 1: {// Left button
-							/* || event.button.x < 0 || event.button.x > 1000 || */
-							/* event.button.y < 0 || event.button.y > 1000) { */
-							if (&global.engine->board[i][j].obj == active.obj) {
-								// back to old pos just dragging or smth like this
-							}
-								
-							/* printf("%d %d\n", event.button.x, event.button.y); */
-							/* print_square_info(&global.engine->board[i][j]); */
-								
+						case 1: {
 							printf("ELEMENT_BELOW\n");
+							printf("oldPos.pos %d\n", oldPos.pos);
 							if (
-						 event.button.x < 0 || event.button.x > board_size[0]
-						|| event.button.y < 0 || event.button.y > board_size[1]
-						|| engine->board[i][j].obj.side == oldPos.obj->side) {
-
-							active.gui->is_highlighted = oldPos.gui->is_highlighted;
-							active.gui->pos = oldPos.gui->pos;
-							active.gui->texture = oldPos.gui->texture;
-	
-							active.obj->side = oldPos.obj->side;
-							active.obj->type = oldPos.obj->type;
-
-							active.gui->is_highlighted = SDL_FALSE;
-							active.gui = NULL;
-							active.obj = NULL;
-							printf("=========================\n");
-							printf("End section\n");
-									
-							free(oldPos.gui);
-							free(oldPos.obj);
-							oldPos.gui = NULL;
-							oldPos.obj = NULL;
-							
-							SDL_RenderClear(renderer);
-							draw_board(renderer, &global);
-							SDL_RenderPresent(renderer);
+							event.button.x < 0 || event.button.x > board_size[0]
+						|| event.button.y < 0 || event.button.y > board_size[1]){
+								return_piece_back(	renderer, &global,
+												&active, &oldPos);
+								break;
 							}
+							// CHECK CASTLE_OOO 5b 61w
+							else if (global.engine->board[(oldPos.pos - 1) / 8][(oldPos.pos - 1) % 8].obj.type == king) {
+								if ((oldPos.pos == 5
+									 && active.pos >= 1 && active.pos <= 3)
+									|| (oldPos.pos == 61
+									 && active.pos >= 57 && active.pos <= 59)) {
+									 if (check_castle_OOO(global.engine) == 0) {
+
+									global.engine->last_move[0] = 0;
+									global.engine->last_move[1] = 0;
+									global.guiBoard[(oldPos.pos - 1) / 8][(oldPos.pos - 1) % 8].is_highlighted = SDL_FALSE;
+
+#define KING_ROW oldPos.obj->side == white ? 7 : 0 // row
+#define KING_COLUMN  2 // always index 2
+								
+									global.guiBoard[KING_ROW][KING_COLUMN].texture = active.gui->texture;
+									active.gui->texture = NULL;
+									active.gui->pos = oldPos.gui->pos;
+									active.gui = NULL;
+									active.obj = NULL;
+
+									global.guiBoard[KING_ROW][KING_COLUMN+1].texture = global.guiBoard[KING_ROW][KING_COLUMN-2].texture;
+									global.guiBoard[KING_ROW][KING_COLUMN-2].texture = NULL;
+									/* global */
+									SDL_RenderClear(renderer);
+									draw_board(renderer, &global);
+									SDL_RenderPresent(renderer);
+									global.engine->player_side = (global.engine->player_side == white
+												? black : white);
+									}
+									else
+										return_piece_back(	renderer, &global,
+															&active, &oldPos);
+									break;
+
+								}
+								// CHECK CASTLE_OO 5b 61w
+								else if (global.engine->board[(oldPos.pos - 1) / 8][(oldPos.pos - 1) % 8].obj.type == king) {
+								if ((oldPos.pos == 5
+									 && (active.pos == 7 ||active.pos == 8))
+									|| (oldPos.pos == 61
+									 && (active.pos == 63 || active.pos == 64)))
+									 {
+									 if (check_castle_OO(global.engine) == 0) {
+
+									global.engine->last_move[0] = 0;
+									global.engine->last_move[1] = 0;
+									global.guiBoard[(oldPos.pos - 1) / 8][(oldPos.pos - 1) % 8].is_highlighted = SDL_FALSE;
+#undef KING_ROW
+#undef KING_COLUMN
+#define KING_ROW oldPos.obj->side == white ? 7 : 0 // row
+#define KING_COLUMN 6  // always index 6
+								
+									global.guiBoard[KING_ROW][KING_COLUMN].texture = active.gui->texture;
+									active.gui->texture = NULL;
+									active.gui->pos = oldPos.gui->pos;
+									active.gui = NULL;
+									active.obj = NULL;
+
+									global.guiBoard[KING_ROW][KING_COLUMN-1].texture = global.guiBoard[KING_ROW][KING_COLUMN+1].texture;
+									global.guiBoard[KING_ROW][KING_COLUMN+1].texture = NULL;
+									/* global */
+									SDL_RenderClear(renderer);
+									draw_board(renderer, &global);
+									SDL_RenderPresent(renderer);
+									global.engine->player_side = (global.engine->player_side == white
+												? black : white);
+									}
+									else
+										return_piece_back(	renderer, &global,
+															&active, &oldPos);
+									break;
+									}
+								}
+							}
+#undef KING_ROW
+#undef KING_COLUMN							
+							if (engine->board[i][j].obj.side == active.obj->side) {
+								return_piece_back(	renderer, &global,
+												&active, &oldPos);
+								break;
+							}
+							if (check_correct_of_movement(
+								global.engine, &oldPos.pos, &active.pos) == 0) {
+								printf("check correct of movement is correct\n");
+								make_new_move(global.engine, &oldPos.pos, &active.pos);
+								global.engine->last_move[0] = oldPos.pos;
+								global.engine->last_move[1] = active.pos;
+								global.engine->player_side = (global.engine->player_side == white ? black : white);
+								global.guiBoard[(oldPos.pos - 1) / 8][(oldPos.pos - 1) % 8].is_highlighted = SDL_FALSE;
+								
+								global.guiBoard[i][j].texture = active.gui->texture;
+								active.gui->texture = NULL;
+								active.gui->pos = oldPos.gui->pos;
+								active.gui = NULL;
+								active.obj = NULL;
+
+								SDL_RenderClear(renderer);
+								draw_board(renderer, &global);
+								SDL_RenderPresent(renderer);
+							}
+							else {
+								return_piece_back(	renderer, &global,
+													&active, &oldPos);
+								break;
+							}
+							break;
 						}
 					}
+					active.obj = NULL;
+					active.gui = NULL;
 					printf("end case\n");
 					is_mouse_holding = SDL_FALSE;
 					break;
+				}
 				case SDL_QUIT:
 					is_running = 0;
 					break;
+				default: break;
 			}
 		}
 		/* SDL_RenderPresent(renderer); ???*/
@@ -340,7 +480,7 @@ static void load_board(SDL_Window *window) {
 }
 
 
-uint8_t gui_start_menu(struct chess *global) {
+uint8_t gui_start_menu(struct chess *engine) {
 
 	new_debug_record("gui_init\n");
 	
@@ -401,17 +541,29 @@ uint8_t gui_start_menu(struct chess *global) {
 
 	SDL_RenderSetLogicalSize(renderer, INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
 	
+	SDL_RenderClear(renderer);
+	draw_menu(renderer,
+		&pvp_one_device_button, &pvp_local_button,
+		&pvp_bot_button, &exit_button);
+	SDL_RenderPresent(renderer);
+	
 	uint8_t is_running = 1;
 	while (is_running) {
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
-			if (event.type == SDL_WINDOWEVENT) {
-				update_window_size(window);
-				update_board_size();
-				printf("Window size is %d %d\n", window_size[0], window_size[1]);
-				printf("Board size is %d %d\n", board_size[0], board_size[1]);			
-			}
-			switch (event.type){
+			switch (event.type) {
+				case SDL_WINDOWEVENT: {
+					printf("Window size is %d %d\n", window_size[0], window_size[1]);
+					printf("Board size is %d %d\n", board_size[0], board_size[1]);			
+					update_window_size(window);
+					update_board_size();					
+					SDL_RenderClear(renderer);
+					draw_menu(renderer,
+						&pvp_one_device_button, &pvp_local_button,
+						&pvp_bot_button, &exit_button);
+					SDL_RenderPresent(renderer);
+					break;
+				}
 				case SDL_MOUSEBUTTONUP:
 			// When I press at a piece when it just moved under cursor 
 					if (rect_under_mcursor(event.button.x, event.button.y,
@@ -421,20 +573,53 @@ uint8_t gui_start_menu(struct chess *global) {
 					}
 					else if (rect_under_mcursor(event.button.x, event.button.y,
 										&pvp_one_device_button.rect)) {
-						/* SDL_DestroyTexture(pvp_bot_button.idleButton); */
-						/* SDL_DestroyTexture(exit_button.idleButton); */
-						/* SDL_DestroyTexture(pvp_local_button.idleButton); */
-						/* SDL_DestroyTexture(pvp_local_button.idleButton); */
-						SDL_RenderClear(renderer);
-						SDL_RenderPresent(renderer);
 						++is_running; // HARD-CODE crutch!!!
-						while (is_running == 2) {// TODO: it's crutch CHANGE !!!
+						do { // it's crutch CHANGE !!!
+							init_engine(engine);
+							            set_training_board(engine->board,
+						                    "EEEEEEKE"
+						                    "EEEEEEEE"
+						                    "EEEEdEEE"
+						                    "EEEdEEEE"
+						                    "EEEEEdEE"
+						                    "EEEEEkEE"
+						                    "EEEEEEEE"
+						                    "EEEEEEEE");
+							init_attacking_board(engine->board);
 							is_running = gui_start_pvp_one_device
-													(global, window, renderer);
+													(engine, window, renderer);
+							} while (is_running == 2);
+						// here win status
+							printf("===========GAME IS FINISHED===========\n");
+							switch (engine->status) {
+								case session_active:
+									printf("Incorrect game finished status\n");
+									return GAME_STATUS_SESSION_ACTIVE;
+								case end_stalemate:
+									printf("===========STALEMATE===========\n");
+									return GAME_STATUS_END_STALEMATE;
+								case winner_black: {
+									printf("===========BLACK WIN===========\n");
+									return GAME_STATUS_END_BLACK_WIN;
+								}
+								case winner_white: {
+									printf("===========WHITE WIN===========\n");
+									return GAME_STATUS_END_WHITE_WIN;
+									}
+							SDL_Delay(5000);
 						}
-					}
-					if (!is_running)
+						SDL_RenderClear(renderer);
+						draw_menu(renderer,
+							&pvp_one_device_button, &pvp_local_button,
+							&pvp_bot_button, &exit_button);
+						SDL_RenderPresent(renderer);
+						}
+					if (is_running == 0)
 						goto quit;
+					draw_menu(renderer,
+						&pvp_one_device_button, &pvp_local_button,
+						&pvp_bot_button, &exit_button);
+						SDL_RenderPresent(renderer);
 					break;
 				case SDL_KEYDOWN:
 					switch(event.key.keysym.sym)
@@ -447,29 +632,10 @@ uint8_t gui_start_menu(struct chess *global) {
 				case SDL_QUIT: {
 					is_running = 0;
 					break;
+				}
 			}
 		}
-		SDL_SetRenderDrawColor(renderer, 213, 189, 175, 255);
-		SDL_RenderClear(renderer);
-		
-		SDL_RenderCopy(renderer, exit_button.idleButton, NULL, &exit_button.rect);
-		SDL_RenderCopy(renderer, pvp_bot_button.idleButton, NULL, &pvp_bot_button.rect);
-		SDL_RenderCopy(renderer, pvp_local_button.idleButton, NULL, &pvp_local_button.rect);
-		SDL_RenderCopy(renderer, pvp_one_device_button.idleButton, NULL, &pvp_one_device_button.rect);
-		
-		/* SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); */
-
-
-		/* SDL_RenderFillRect(renderer, &exit_button.rect); */
-		
-		/* sdl_RenderCopy(renderer, texture, NULL, &exit_button.rect); */
-		/* SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); */
-
-		SDL_RenderPresent(renderer);
-
-		/* SDL_ShowWindow(window); */
-		/* SDL_Delay(80); */
-		}
+		SDL_Delay(25);
 	}
 	// TODO: think how to realize more optimaze option to calling the function
 	// and in the case of exit to menu return to menu_loop without next call menu

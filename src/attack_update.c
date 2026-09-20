@@ -245,6 +245,7 @@ king_pos_update(struct square (*board)[8], enum color_t *side, uint8_t *pos,
 			free_sq += upd_func(&board[POS_XP][POS_YP - 1], side);
 		}      
 		free_sq += upd_func(&board[POS_XP + 1][POS_YP], side);
+		
 	}
 	else if (POS_XP == 7) {
 		if (POS_YP < 7) {
@@ -254,7 +255,7 @@ king_pos_update(struct square (*board)[8], enum color_t *side, uint8_t *pos,
 		if (POS_YP > 0) {
 			free_sq += upd_func(&board[POS_XP - 1][POS_YP - 1], side);
 			free_sq += upd_func(&board[POS_XP][POS_YP - 1], side);
-		}      
+		}
 		free_sq += upd_func(&board[POS_XP - 1][POS_YP], side);
 	} else {
 		if (POS_YP < 7) {
@@ -270,5 +271,6 @@ king_pos_update(struct square (*board)[8], enum color_t *side, uint8_t *pos,
 		free_sq += upd_func(&board[POS_XP + 1][POS_YP], side);
 		free_sq += upd_func(&board[POS_XP - 1][POS_YP], side);
 	}
+
 	return free_sq;
 }    

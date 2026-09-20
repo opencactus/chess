@@ -618,8 +618,10 @@ static uint8_t *check_hidden_attack(struct square (*board)[8], uint8_t *pos,
 
 static uint8_t count_free_squares(struct square (*board)[8], enum color_t *side,
                            		enum piece_t type, uint8_t *npos) {
-	if (*side == none)
+	if (*side == none) {
 		return ERROR_INPUT_ABSENT_PIECES;
+	}
+	printf("wtf\n");
   
     switch (type) {
     case pawn: {
@@ -831,6 +833,9 @@ check_on_stalemate_position(struct chess *global, enum color_t side)
 			}
 		}
 	}
+	if ((global->board[KPOS_XP][KPOS_YP].b_attack > 0 && side == white) ||
+	(global->board[KPOS_XP][KPOS_YP].b_attack > 0 && side == white))
+		return 0;
 	return 255;
 }
 
@@ -1085,7 +1090,8 @@ check_castle_OOO(struct chess *global) {
 			  || BOARD[0][2].obj.type != empty || BOARD[0][2].w_attack > 0
 			  || BOARD[0][3].obj.type != empty || BOARD[0][3].w_attack > 0)
 				return ERROR_CASTLE_ROOK_IS_BLOCKED;
-			if (BOARD[0][4].b_attack > 0)
+			printf("qqweqweqwe\n");
+			if (BOARD[0][4].w_attack > 0)
 				return ERROR_KING_UNDER_ATTACK;
 			uint8_t rpos = 1;
 			castle_update(global, &global->kpos_b, &rpos, 3);

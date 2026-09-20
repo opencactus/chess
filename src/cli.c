@@ -247,7 +247,7 @@ cli_start_pvp_one_device (struct chess *global)
         if (print_flag) {
             printf("\033[2J\033[H"); // DEBUG_HERE
             print_board(global->board, &global->player_side);
-            /* printf_debug(global->board); */
+            printf_debug(global->board);
 			/* printf("bits %d\n", global->castling_flags); */
         } else
           print_flag = 1;
@@ -382,9 +382,9 @@ cli_start_pvp_one_device (struct chess *global)
                 continue;
             }
 #endif            
-            /* new pos */
+            /* new pos. max value is 64*/
             uint8_t npos = get_pos_value(&pos[1][0], &pos[1][1]);
-
+			printf("npos is %d\n", npos);
 
             if (check_correct_of_movement(global, &opos, &npos) != 0) {
 				fprintf(stderr, "Invalid move\n");

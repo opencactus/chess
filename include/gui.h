@@ -10,10 +10,10 @@
 struct chess;
 
 #define INITIAL_WINDOW_WIDTH				1200
-#define INITIAL_WINDOW_HEIGHT				1000
+#define INITIAL_WINDOW_HEIGHT				1200
 
-#define INITIAL_BOARD_WIDTH				1000
-#define INITIAL_BOARD_HEIGHT				1000
+#define INITIAL_BOARD_WIDTH				1200
+#define INITIAL_BOARD_HEIGHT				1200
 
 #define BUTTON_MENU_WIDTH					200
 #define BUTTON_MENU_HEIGHT					100
@@ -50,6 +50,7 @@ struct guiPiece {
 
 
 struct active_figure {
+	uint8_t pos;
 	struct piece *obj;
 	struct guiPiece *gui;
 };

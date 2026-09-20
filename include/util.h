@@ -82,4 +82,7 @@ find_figure(struct square (*board)[8], enum color_t side, enum piece_t type);
 void
 print_square_info(struct square *sq);
 
+void
+init_engine(struct chess *engine);
+
 #endif // UTIL_H
