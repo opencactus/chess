@@ -1,4 +1,9 @@
 * TODO
+** TODO Engine
+*** TODO BUG. I got stalemate indeed white win
+*** IN-PROGRESS BUG. I didn't get win when I made linear rook checkmate
+** Tests
+I need to write auto tests
 ** IN-PROGRESS GUI
 *** DONE Castle bug
 If I try castle when my king just stuck in new pos

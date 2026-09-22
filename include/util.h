@@ -4,7 +4,14 @@
 #include <stdint.h>
 
 #define PRINT_DASH printf("==============================================\n");
-
+#define TRAINING_BOARD 	"EEEEEEKE"\
+							"EEEEEEEE"\
+							"EDEEEEEE"\
+							"EEEEEEEE"\
+							"EEEEEEkE"\
+							"EEEEEEdE"\
+							"EPEEEEEE"\
+							"EEEEEEEE"
 enum color_t
 { none = 0, black = 1, white = 2 };
 

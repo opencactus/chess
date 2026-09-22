@@ -61,15 +61,10 @@ main (int32_t argc, char *argv[]) {
 			init_engine(global);
             user_side = &global->player_side;
 			
-            set_training_board(global->board,
-						                    "EEEEEEKE"
-						                    "EEEEEEEE"
-						                    "EEddEEEE"
-						                    "EEEEEEEE"
-						                    "EEEEEEEE"
-						                    "EEEEEkEE"
-						                    "EEEEEEEE"
-						                    "EEEEEEEE");
+            set_training_board(global->board, TRAINING_BOARD);
+											
+			global->kpos_b = find_figure(global->board, black, king);
+			global->kpos_w = find_figure(global->board, white, king);
 			
 			if (global->kpos_b == 255 || global->kpos_w == 255) {
 				printf("Missing King white or black side\n");
@@ -119,3 +114,4 @@ main (int32_t argc, char *argv[]) {
     }
     return 0;
 }
+    

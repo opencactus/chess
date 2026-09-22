@@ -577,24 +577,19 @@ uint8_t gui_start_menu(struct chess *engine) {
 						do { // it's crutch CHANGE !!!
 							init_engine(engine);
 							            set_training_board(engine->board,
-						                    "EEEEEEKE"
-						                    "EEEEEEEE"
-						                    "EEEEdEEE"
-						                    "EEEdEEEE"
-						                    "EEEEEdEE"
-						                    "EEEEEkEE"
-						                    "EEEEEEEE"
-						                    "EEEEEEEE");
+						                    TRAINING_BOARD);
 							init_attacking_board(engine->board);
+							engine->kpos_b = find_figure(engine->board, black, king);
+							engine->kpos_w = find_figure(engine->board, white, king);
 							is_running = gui_start_pvp_one_device
 													(engine, window, renderer);
 							} while (is_running == 2);
 						// here win status
 							printf("===========GAME IS FINISHED===========\n");
 							switch (engine->status) {
-								case session_active:
-									printf("Incorrect game finished status\n");
-									return GAME_STATUS_SESSION_ACTIVE;
+								case session_active: {
+									break;
+									}
 								case end_stalemate:
 									printf("===========STALEMATE===========\n");
 									return GAME_STATUS_END_STALEMATE;

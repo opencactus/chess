@@ -417,9 +417,6 @@ check_king_move (struct square (*board)[8], uint8_t *opos, uint8_t *npos)
 }
 
 
-// TODO: Need to make a best efficient system for checking square on attacking
-// by pieces on the board (need to add check every square on attacked which
-// have been attack by move figure)
 static uint8_t clean_the_piece_attack(struct square (*board)[8], uint8_t *pos) {
 
 	switch (board[POS_XP][POS_YP].obj.type) {
@@ -456,19 +453,19 @@ static uint8_t npos_update(struct square (*board)[8], enum color_t side,
 		return ERROR_INPUT_ABSENT_PIECES;
   
     switch (type) {
-    case pawn:
-		return pawn_pos_update(board, &side, npos, SQ_UPD_ATTCK);
-	case knight:
-		return knight_pos_update(board, &side, npos, SQ_UPD_ATTCK);
-	case king:
-		return king_pos_update(board, &side, npos, SQ_UPD_ATTCK);
-	case queen:
-		return queen_pos_update(board, &side, npos, SQ_UPD_ATTCK);
-	case rook: 
-		return rook_pos_update(board, &side, npos, SQ_UPD_ATTCK);
-	case bishop:
-		return bishop_pos_update(board, &side, npos, SQ_UPD_ATTCK);
-    }
+	    case pawn:
+			return pawn_pos_update(board, &side, npos, SQ_UPD_ATTCK);
+		case knight:
+			return knight_pos_update(board, &side, npos, SQ_UPD_ATTCK);
+		case king:
+			return king_pos_update(board, &side, npos, SQ_UPD_ATTCK);
+		case queen:
+			return queen_pos_update(board, &side, npos, SQ_UPD_ATTCK);
+		case rook: 
+			return rook_pos_update(board, &side, npos, SQ_UPD_ATTCK);
+		case bishop:
+			return bishop_pos_update(board, &side, npos, SQ_UPD_ATTCK);
+	}
 	return ERROR_INPUT_ABSENT_PIECES;
 }
 
@@ -621,7 +618,7 @@ static uint8_t count_free_squares(struct square (*board)[8], enum color_t *side,
 	if (*side == none) {
 		return ERROR_INPUT_ABSENT_PIECES;
 	}
-	printf("wtf\n");
+	printf("621 engine debug\n");
   
     switch (type) {
     case pawn: {
@@ -834,27 +831,43 @@ check_on_stalemate_position(struct chess *global, enum color_t side)
 		}
 	}
 	if ((global->board[KPOS_XP][KPOS_YP].b_attack > 0 && side == white) ||
-	(global->board[KPOS_XP][KPOS_YP].b_attack > 0 && side == white))
+		(global->board[KPOS_XP][KPOS_YP].b_attack > 0 && side == white)) {
 		return 0;
+	}
 	return 255;
 }
 
 
 uint8_t
 make_new_move(struct chess *global, uint8_t *opos, uint8_t *npos) {
+	/*
+	* Here I clean enemy attack because this new move is legit and
+	* engine sure what this move happened at 100%
+	* (only if next cond would work correctly)
+	*/
 	if (global->board[NPOS_XP][NPOS_YP].obj.type != empty)
-		clean_the_piece_attack(global->board, npos); /* clean the enemy attack */
+		clean_the_piece_attack(global->board, npos);
 
+	// clean old attack moved figure
 	clean_the_piece_attack(global->board, opos);
+	// assignment new side
 	global->board[NPOS_XP][NPOS_YP].obj.side =
 									global->board[OPOS_XP][OPOS_YP].obj.side;
+
+	/*
+	* This needs for pawn_transformation. CLI/GUI interface updates this variable
+	* with selected a new figure
+	*/
 	if (global->pawn_transformation != empty) {
 
 		global->board[OPOS_XP][OPOS_YP].obj.type = empty;
 		global->board[OPOS_XP][OPOS_YP].obj.side = none;
 
+		// It needs if pawn bit enemy figure at last horizontal and change diagonal
+		// So if behind was rook it attack all vertical or for other cases
 		check_hidden_attack(global->board, opos, square_state_upd_by_attacking);
 
+		// just npos update and clean pawn_transformation
 		global->board[NPOS_XP][NPOS_YP].obj.type = global->pawn_transformation;
 		global->pawn_transformation = empty;
 		npos_update(global->board, global->board[NPOS_XP][NPOS_YP].obj.side,
@@ -863,17 +876,16 @@ make_new_move(struct chess *global, uint8_t *opos, uint8_t *npos) {
 		/* It made for memory optimization (Don't create new buffer variable */
 		global->pawn_transformation = global->board[OPOS_XP][OPOS_YP].obj.type;
 
+		// remove old pos figure
 		global->board[OPOS_XP][OPOS_YP].obj.type = empty;
 		global->board[OPOS_XP][OPOS_YP].obj.side = none;
-
+		// prevention like above
 		check_hidden_attack(global->board, opos, square_state_upd_by_attacking);
 
 		global->board[NPOS_XP][NPOS_YP].obj.type = global->pawn_transformation;
 		global->pawn_transformation = empty;
 		npos_update(global->board, global->board[NPOS_XP][NPOS_YP].obj.side,
 					global->board[NPOS_XP][NPOS_YP].obj.type, npos);
-		// BUG: If I move my rook he doesn't know about old position
-		// and attacking find loop just find it old position and stop
 	}
 	check_hidden_attack(global->board, npos, square_state_upd_by_leaving);
 	if (global->board[NPOS_XP][NPOS_YP].obj.type == king) {
@@ -930,20 +942,24 @@ check_correct_of_movement (struct chess *global, uint8_t *opos, uint8_t *npos) {
 	/*
 	*	It's just check the move correctly.
 	*	It can't return end of the game and it'd working only if
-	*	already sure stalemate and checkmate didn't happen
+	*	old position wasn't final
+	*
+	*	Like I moved rook to check position. It's not means what after this func
+	*	I get result of check complete board for winning. Just check legit move.
 	*/
 	if (global->board[(global->kpos_b - 1) / 8][(global->kpos_b - 1) % 8]
 		.w_attack > 0) {
-          if (global->board[OPOS_XP][OPOS_YP].obj.type == king &&
+		if (global->board[OPOS_XP][OPOS_YP].obj.type == king &&
               global->board[NPOS_XP][NPOS_YP].w_attack > 0) {
 			  printf("It's danger square! 1\n");
 			  DEBUG_MSG("ERROR_KING_MOVE_TO_ATTACKED_SQUARE\n");
 			  return ERROR_KING_MOVE_TO_ATTACKED_SQUARE;
-		} else if (check_on_living_shield(global, opos, npos)) {
+			}
+		else if (check_on_living_shield(global, opos, npos)) {
 			  DEBUG_MSG("ERROR_USELESS_MOVE_DURING_KING_ATTACK\n");
 			  printf("Your king underattack! 1\n");                  
 			  return ERROR_USELESS_MOVE_DURING_KING_ATTACK;
-		}
+			}
 	} else if (global->board[(global->kpos_w - 1) / 8][(global->kpos_w - 1) % 8]
 			   .b_attack > 0) {
 		if (global->board[OPOS_XP][OPOS_YP].obj.type == king &&
@@ -958,18 +974,25 @@ check_correct_of_movement (struct chess *global, uint8_t *opos, uint8_t *npos) {
 			return ERROR_USELESS_MOVE_DURING_KING_ATTACK;
 		}
 	}
-	
+
+	// It's not minor move (in 1 square limit)
+	// Maybe it's overhead because I literally added same checks in gui and cli
+	// for optimization. But for ai I need to leave it here. I need to realize.
 	if (*opos == *npos)
     {
         printf("ERROR_MINOR_MOVE\n");
         return ERROR_MINOR_MOVE;
     }
+	// It's not friendly fire
     if (global->board[NPOS_XP][NPOS_YP].obj.side
 		== global->board[OPOS_XP][OPOS_YP].obj.side)
     {
         printf("ERROR_INPUT_FRIENDLY_ATTACK\n");
         return ERROR_INPUT_FRIENDLY_ATTACK;
     }
+	
+	// This condition checks what if before a piece was shield for king
+	// the new position will be safely for king again
     if ((get_attack_t(&global->board[OPOS_XP][OPOS_YP])
 			== both_attacked
 		|| get_attack_t(&global->board[OPOS_XP][OPOS_YP])
@@ -983,7 +1006,7 @@ check_correct_of_movement (struct chess *global, uint8_t *opos, uint8_t *npos) {
         	return -1;
 		}
     }
-    
+    // return result of checking specifically type moved figure
     return is_this_movement_correct(global, opos, npos);
 }
 

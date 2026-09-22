@@ -122,7 +122,6 @@ knight_pos_update(struct square (*board)[8], enum color_t *side, uint8_t *pos,
 uint8_t
 pawn_pos_update(struct square (*board)[8], enum color_t *side, uint8_t *pos,
                 uint8_t (*upd_func)(struct square *, enum color_t *)) {
-// If POS_XP == 7 and side is black than I get SEGM  
 #define PAWN_XLEVEL POS_XP + (*side == black) - (*side == white)
 	uint8_t counter = 0;
 	if (POS_YP == 0) {
