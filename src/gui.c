@@ -20,9 +20,10 @@
 #include "../include/engine.h"
 #include "../include/logging.h"
 
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
 
 int32_t window_size[2];
-int32_t board_size[2];
+int32_t board_size[2]; // use case for non-square board?
 
 
 static inline void update_window_size(SDL_Window *window) {
@@ -31,8 +32,8 @@ static inline void update_window_size(SDL_Window *window) {
 
 
 static inline void update_board_size() {
-	board_size[0] = window_size[0];
-	board_size[1] = window_size[1];
+	board_size[0] = MIN(window_size[0], window_size[1]); // board scaling bugfix, part 1
+	board_size[1] = board_size[0];
 }
 
 
@@ -186,8 +187,7 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 	/* SDL_RenderClear(renderer); */
 	uint8_t is_running = 1;
 	update_window_size(window);
-	board_size[0] = 1000;
-	board_size[1] = 1000;	
+	update_board_size();
 	struct guiChess global;
 	global.engine = engine;
 	
@@ -256,26 +256,17 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 						global.guiBoard[i][j].pos.w = board_size[0]/8;
 						global.guiBoard[i][j].pos.h = board_size[1]/8;
 					}
-					SDL_RenderClear(renderer);
-					draw_board(renderer, &global);
-					SDL_RenderPresent(renderer);
 					break;
 				case SDL_MOUSEMOTION:
-					switch (event.button.button) {
-						case 1: {// Left button
-							if (!is_mouse_holding || active.gui == NULL) break;
-							active.gui->pos.x = event.motion.x - window_size[0] / 8 / 2;
-							active.gui->pos.y = event.motion.y - window_size[1] / 8 / 2;
-							
-							SDL_RenderClear(renderer);
-							draw_board(renderer, &global);
-							SDL_RenderCopy(renderer, active.gui->texture, NULL, &active.gui->pos);
-							SDL_RenderPresent(renderer);
-						}
-						default: break;
+					if (is_mouse_holding && active.gui != NULL) {
+						active.gui->pos.x = event.motion.x - window_size[0] / 8 / 2;
+						active.gui->pos.y = event.motion.y - window_size[1] / 8 / 2;
 					}
 					break;
 				case SDL_MOUSEBUTTONDOWN: {
+					if (event.button.button != SDL_BUTTON_LEFT) {
+						break;
+					}
 					printf("SDL_MOUSEBUTTONDOWN\n");
 					uint8_t i = 0;
 					uint8_t j = 0;
@@ -304,6 +295,9 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 					break;
 				}
 				case SDL_MOUSEBUTTONUP: {
+					if (event.button.button != SDL_BUTTON_LEFT) {
+						break;
+					}
 					printf("SDL_MOUSEBUTTONUP\n");
 					uint8_t i = 0;
 					uint8_t j = 0;
@@ -346,10 +340,6 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 
 									global.guiBoard[KING_ROW][KING_COLUMN+1].texture = global.guiBoard[KING_ROW][KING_COLUMN-2].texture;
 									global.guiBoard[KING_ROW][KING_COLUMN-2].texture = NULL;
-									/* global */
-									SDL_RenderClear(renderer);
-									draw_board(renderer, &global);
-									SDL_RenderPresent(renderer);
 									global.engine->player_side = (global.engine->player_side == white
 												? black : white);
 									}
@@ -384,10 +374,6 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 
 									global.guiBoard[KING_ROW][KING_COLUMN-1].texture = global.guiBoard[KING_ROW][KING_COLUMN+1].texture;
 									global.guiBoard[KING_ROW][KING_COLUMN+1].texture = NULL;
-									/* global */
-									SDL_RenderClear(renderer);
-									draw_board(renderer, &global);
-									SDL_RenderPresent(renderer);
 									global.engine->player_side = (global.engine->player_side == white
 												? black : white);
 									}
@@ -419,10 +405,6 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 								active.gui->pos = oldPos.gui->pos;
 								active.gui = NULL;
 								active.obj = NULL;
-
-								SDL_RenderClear(renderer);
-								draw_board(renderer, &global);
-								SDL_RenderPresent(renderer);
 							}
 							else {
 								return_piece_back(	renderer, &global,
@@ -444,8 +426,13 @@ gui_start_pvp_one_device(struct chess *engine, SDL_Window *window,
 				default: break;
 			}
 		}
-		/* SDL_RenderPresent(renderer); ???*/
-		SDL_Delay(25);
+		// Significantly increases performance, rendering should happen outside the event loop
+		SDL_RenderClear(renderer);
+		draw_board(renderer, &global);
+		if (active.gui != NULL) {
+			SDL_RenderCopy(renderer, active.gui->texture, NULL, &active.gui->pos);
+		}
+		SDL_RenderPresent(renderer);
 	}
 	free(oldPos.gui);
 	free(oldPos.obj);
@@ -539,7 +526,7 @@ uint8_t gui_start_menu(struct chess *engine) {
 			renderer,
 			"exit.png");
 
-	SDL_RenderSetLogicalSize(renderer, INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
+	SDL_RenderSetLogicalSize(renderer, 0, 0); // board scaling bugfix, part 2
 	
 	SDL_RenderClear(renderer);
 	draw_menu(renderer,
@@ -554,7 +541,7 @@ uint8_t gui_start_menu(struct chess *engine) {
 			switch (event.type) {
 				case SDL_WINDOWEVENT: {
 					printf("Window size is %d %d\n", window_size[0], window_size[1]);
-					printf("Board size is %d %d\n", board_size[0], board_size[1]);			
+					printf("Board size is %d %d\n", board_size[0], board_size[1]);
 					update_window_size(window);
 					update_board_size();					
 					SDL_RenderClear(renderer);

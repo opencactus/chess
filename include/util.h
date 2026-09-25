@@ -12,7 +12,7 @@
 							"EEEEEEdE"\
 							"EPEEEEEE"\
 							"EEEEEEEE"
-enum color_t
+enum color_t // kinda inefficient, could be combined with piece_t into a uint8_t bitmask
 { none = 0, black = 1, white = 2 };
 
 enum piece_t

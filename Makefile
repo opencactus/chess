@@ -39,7 +39,7 @@ $(builddir)/%.o: $(srcdir)/%.c | $(builddir)
 clean:
 	rm -f $(builddir)/*
 
-run:
+run: all
 	SDL_VIDEODRIVER=x11 ./build/$(BIN_NAME)
 
 debug_all: clean all debug
